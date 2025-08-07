@@ -1,0 +1,66 @@
+version: "3.7"
+
+networks:
+  elotus_network:
+    name: elotus_network
+    driver: bridge
+
+volumes:
+  elotus_pg:
+    driver: local
+
+
+services:
+  elotus-svc:
+    image: golang:1.24-alpine
+    container_name: elotus-svc
+    volumes:
+      - ./:/home/go/src
+      - ./go.sh:/home/go/go.sh
+    entrypoint: [ "sh", "-c", "chmod 777 /home/go/go.sh && sh /home/go/go.sh && tail -f /dev/null" ]
+    environment:
+      GO111MODULE: "on"
+      SERVICE_NAME: elotus-svc
+    ports:
+      - 80:80
+    working_dir: /home/go/src
+    restart: unless-stopped
+    networks:
+      - elotus_network
+
+  elotus_redis:
+    image: redis
+    container_name: elotus_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - elotus_network
+    volumes:
+      - ./redis-data:/data
+
+  elotus_redis_commander:
+    image: rediscommander/redis-commander:latest
+    ports:
+      - "8081:8081"
+    environment:
+      - REDIS_HOSTS=elotus_redis
+    networks:
+      - elotus_network
+    depends_on:
+      - elotus_redis
+
+  elotus_pg:
+    container_name: elotus_pg
+    image: postgres:14.2
+    restart: unless-stopped
+    networks:
+      - elotus_network
+    environment:
+      POSTGRES_USER: elotus_pg
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: elotus
+      PGDATA: /data/postgres
+    volumes:
+      - elotus_pg:/data/postgres
+    ports:
+      - "5432:5432"
